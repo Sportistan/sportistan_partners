@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sportistan_partners/connectivity/check_internet_state.dart';
+import 'package:sportistan_partners/connectivity/network_model.dart';
 import 'package:sportistan_partners/firebase_options.dart';
 import 'package:sportistan_partners/home/home_screen.dart';
 import 'package:sportistan_partners/login/authentication.dart';
@@ -51,9 +54,8 @@ class _MyHomePageState extends State<MyHomePage>
 
   @override
   void initState() {
-
-    _controller = AnimationController(vsync: this);
     super.initState();
+    _controller = AnimationController(vsync: this);
   }
 
   @override
@@ -65,18 +67,10 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback(
-        (_) => Future.delayed(const Duration(seconds: 250000), () async {
-              _auth.authStateChanges().listen((User? user) {
-                if (user == null) {
-                  userStateSave();
-                } else {
-                  _moveToDecision(const Home());
-                }
-              });
+        (_) => Future.delayed(const Duration(milliseconds: 2500), () async {
+              _screenLoader();
             }));
-
     return Scaffold(
-      backgroundColor: const Color(0xffe29587),
       body: Center(
         child: SizedBox(
           height: MediaQuery.of(context).size.height / 4,
@@ -125,6 +119,66 @@ class _MyHomePageState extends State<MyHomePage>
       }
     } else {
       _moveToDecision(const OnBoard());
+    }
+  }
+
+  void _authCheck() {
+    _auth.authStateChanges().listen((User? user) {
+      if (user == null) {
+        userStateSave();
+      } else {
+        _moveToDecision(const Home());
+      }
+    });
+  }
+
+  void _noInternetPage() {
+    if (Platform.isAndroid) {
+      Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const CheckInternetState(),
+          ),
+          (route) => false);
+    }
+    if (Platform.isIOS) {
+      if (Platform.isAndroid) {
+        Navigator.pushAndRemoveUntil(
+            context,
+            CupertinoPageRoute(
+              builder: (context) => const CheckInternetState(),
+            ),
+            (route) => false);
+      }
+    }
+  }
+
+  Future<void> _screenLoader() async {
+    ConnectivityResult result = await NetworkModel.initConnectivity();
+    switch (result) {
+      case ConnectivityResult.none:
+        {
+          _noInternetPage();
+        }
+      case ConnectivityResult.bluetooth:
+
+        case ConnectivityResult.wifi:
+        {
+          _authCheck();
+        }
+      case ConnectivityResult.ethernet:
+      case ConnectivityResult.mobile:
+        {
+          _authCheck();
+        }
+      case ConnectivityResult.vpn:
+        {
+          _authCheck();
+        }
+      case ConnectivityResult.other:
+        {
+          _noInternetPage();
+        }
     }
   }
 }
